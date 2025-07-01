@@ -51,7 +51,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_launcher_icons: ^0.14.3
-  
 
 flutter_icons:
   android: true
@@ -80,8 +79,6 @@ flutter:
   assets:
     - assets/
     - assets/about.jpg
-    - test_assets/mock_image.jpg
-    - assets/users.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

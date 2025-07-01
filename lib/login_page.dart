@@ -1,155 +1,243 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:io';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'google_sign.dart';
+import 'package:flutter/gestures.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
-  Future<void> _runSignupAutomation(BuildContext context) async {
-    print('Starting signup automation'); // Debug start
-    const int iterations = 3;
-    final tempDir = Directory.systemTemp;
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
 
-    for (int i = 1; i <= iterations; i++) {
-      print('Attempting signup for user$i'); // Debug iteration
-      final email = 'user$i@gmail.com';
-      final password = 'usern@123';
-      final name = 'user$i';
-      final phone = '9945390672';
-      const selectedLocation = 'Bangalore';
+class _LoginPageState extends State<LoginPage> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  bool _rememberMe = false;
 
-      try {
-        // Check mock image
-        const mockImagePath = 'test_assets/mock_image.jpg';
-        print('Checking mock image at $mockImagePath');
-        final mockProfileFile = File(mockImagePath);
-        if (!await mockProfileFile.exists()) {
-          print('Mock image not found');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Mock image not found')),
-          );
-          return;
-        }
+  static const String _emailPattern = r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$';
+  static const int _minPasswordLength = 8;
 
-        // Compress images
-        print('Compressing images for user$i');
-        final compressedProfilePath = '${tempDir.path}/compressed_profile_$i.jpg';
-        final compressedShopPath = '${tempDir.path}/compressed_shop_$i.jpg';
-        final compressedProfileFile = await FlutterImageCompress.compressAndGetFile(
-          mockProfileFile.absolute.path,
-          compressedProfilePath,
-          quality: 70,
-          minWidth: 800,
-          minHeight: 800,
-        );
-        final compressedShopFile = await FlutterImageCompress.compressAndGetFile(
-          mockProfileFile.absolute.path,
-          compressedShopPath,
-          quality: 70,
-          minWidth: 800,
-          minHeight: 800,
-        );
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
-        if (compressedProfileFile == null || compressedShopFile == null) {
-          print('Image compression failed');
-          throw Exception('Image compression failed');
-        }
+  Future<void> _signIn() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-        // Signup
-        print('Signing up user$i with email: $email');
-        final response = await Supabase.instance.client.auth.signUp(
-          email: email,
-          password: password,
-        );
-
-        if (response.user != null) {
-          final userId = response.user!.id;
-          final timestamp = DateTime.now().millisecondsSinceEpoch;
-          print('User$i signed up, ID: $userId');
-
-          // Upload profile image
-          print('Uploading profile image for user$i');
-          final profileFilePath = 'userprofile/$userId/profile_$timestamp.jpg';
-          await Supabase.instance.client.storage
-              .from('userprofile')
-              .upload(profileFilePath, File(compressedProfileFile.path));
-          final profileImageUrl = Supabase.instance.client.storage
-              .from('userprofile')
-              .getPublicUrl(profileFilePath);
-          print('Profile image URL: $profileImageUrl');
-
-          // Upload shop image
-          print('Uploading shop image for user$i');
-          final shopFilePath = 'shopimages/$userId/shop_$timestamp.jpg';
-          await Supabase.instance.client.storage
-              .from('shopimages')
-              .upload(shopFilePath, File(compressedShopFile.path));
-          final shopImageUrl = Supabase.instance.client.storage
-              .from('shopimages')
-              .getPublicUrl(shopFilePath);
-          print('Shop image URL: $shopImageUrl');
-
-          // Insert user
-          print('Inserting user$i into users table');
-          await Supabase.instance.client.from('users').insert({
-            'id': userId,
-            'full_name': name,
-            'email': email,
-            'phone': phone,
-            'location': selectedLocation,
-            'profile_image': profileImageUrl,
-            'shop_image': shopImageUrl,
-          });
-
-          print('User$i signup successful');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Signed up user$i successfully')),
-          );
-          await Future.delayed(const Duration(seconds: 1));
-        } else {
-          print('User$i creation failed');
-          throw Exception('User creation failed');
-        }
-      } catch (e) {
-        print('Error signing up user$i: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error signing up user$i: $e')),
-        );
-      }
+    // Input validation
+    if (!_validateInputs(email, password)) {
+      return;
     }
 
-    print('Navigating to signup page');
-    Navigator.pushNamed(context, '/signup');
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (response.user == null) {
+        throw Exception('Invalid credentials');
+      }
+
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } on AuthException catch (e) {
+      _showSnackBar('Login failed: ${e.message}');
+    } catch (e) {
+      _showSnackBar('Login failed: An unexpected error occurred');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  bool _validateInputs(String email, String password) {
+    if (email.isEmpty) {
+      _showSnackBar('Please enter your email');
+      return false;
+    }
+
+    if (!RegExp(_emailPattern).hasMatch(email)) {
+      _showSnackBar('Please enter a valid email address');
+      return false;
+    }
+
+    if (password.isEmpty) {
+      _showSnackBar('Please enter your password');
+      return false;
+    }
+
+    if (password.length < _minPasswordLength) {
+      _showSnackBar('Password must be at least $_minPasswordLength characters');
+      return false;
+    }
+
+    return true;
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Login to HMS Egg Distributions',
-              style: TextStyle(fontSize: 24),
+      backgroundColor: Colors.white,
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                const Text("Welcome Back",
+                    style:
+                        TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                const Text("Sign in to continue",
+                    style: TextStyle(fontSize: 14, color: Colors.grey)),
+                const SizedBox(height: 30),
+                _buildTextField(Icons.email, "Email Address",
+                    controller: _emailController),
+                _buildTextField(Icons.lock, "Password",
+                    obscureText: true, controller: _passwordController),
+                const SizedBox(height: 15),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _rememberMe,
+                          onChanged: (value) =>
+                              setState(() => _rememberMe = value ?? false),
+                        ),
+                        const Text("Remember me"),
+                      ],
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pushNamed(context, '/reset'),
+                      child: const Text("Forgot Password?",
+                          style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 25),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 50),
+                    backgroundColor: Colors.black,
+                  ),
+                  onPressed: _isLoading ? null : _signIn,
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text("Sign In",
+                          style: TextStyle(color: Colors.white)),
+                ),
+                const SizedBox(height: 25),
+                const Center(
+                    child: Text("Or sign in with",
+                        style: TextStyle(color: Colors.grey))),
+                const SizedBox(height: 15),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _socialButton("assets/google.png", onTap: () async {
+                      try {
+                        await googleSignIn();
+                        if (mounted)
+                          Navigator.pushReplacementNamed(context, '/home');
+                      } catch (e) {
+                        _showSnackBar('Google Sign-In Error: $e');
+                      }
+                    }),
+                    const SizedBox(width: 20),
+                    _socialButton("assets/ios.png"),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Center(
+                  child: RichText(
+                    text: TextSpan(
+                      text: "Don't have an account? ",
+                      style: const TextStyle(color: Colors.black),
+                      children: [
+                        TextSpan(
+                          text: "Register",
+                          style: const TextStyle(
+                              color: Colors.red, fontWeight: FontWeight.bold),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap =
+                                () => Navigator.pushNamed(context, '/signup'),
+                        )
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, '/signup'),
-              child: const Text('Sign Up'),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(IconData icon, String hint,
+      {bool obscureText = false, required TextEditingController controller}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: SizedBox(
+        height: 50,
+        child: TextField(
+          controller: controller,
+          obscureText: obscureText,
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon, color: Colors.grey),
+            hintText: hint,
+            filled: true,
+            fillColor: Colors.grey[200],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                print('Run Signup Automation button tapped'); // Debug tap
-                _runSignupAutomation(context);
-              },
-              child: const Text('Run Signup Automation'),
-            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 15),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _socialButton(String imagePath, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              spreadRadius: 1,
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            )
           ],
         ),
+        padding: const EdgeInsets.all(12),
+        child: Image.asset(imagePath, width: 35, height: 35),
       ),
     );
   }
