@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:EggPort/home_page.dart';
 import 'package:EggPort/widgets/custom_background.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -18,8 +19,12 @@ class Transaction {
   final double paid;
   final double balance;
   final String modeOfPayment;
+  final String driverId;
+  final String userId;
 
   Transaction({
+    required this.driverId,
+    required this.userId,
     required this.id,
     required this.date,
     required this.credit,
@@ -164,9 +169,9 @@ class _FirstPageState extends State<FirstPage> {
       }
 
       final transactionsTable = _userRole == 'wholesale' ? 'wholesale_transaction' : 'transactions';
-
-      final transactionsResponse = await _supabase.from(transactionsTable).select('id, date, credit, paid, balance, mode_of_payment').eq('user_id', userId).order('date', ascending: false);
-
+// 'id, date, credit, paid, balance, mode_of_payment'
+      final transactionsResponse = await _supabase.from(transactionsTable).select().eq('user_id', userId).order('date', ascending: false);
+      log(transactionsResponse.toString(), name: "kjdfsaklj");
       setState(() {
         double totalCredit = transactionsResponse.fold(0.0, (sum, t) {
           return sum + (t['credit']?.toDouble() ?? 0.0);
@@ -192,6 +197,8 @@ class _FirstPageState extends State<FirstPage> {
           }
           return Transaction(
             id: t['id'].toString(),
+            userId: t['user_id']?.toString() ?? "",
+            driverId: t['driver_id']?.toString() ?? "",
             date: DateFormat('MMM dd, h:mm a').format(parsedDate),
             credit: t['credit']?.toDouble() ?? 0.0,
             paid: t['paid']?.toDouble() ?? 0.0,
@@ -749,6 +756,8 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
             }
           }
           return Transaction(
+            userId: t['user_id']?.toString() ?? "",
+            driverId: t['driver_id']?.toString() ?? "",
             id: t['id'].toString(),
             date: DateFormat('MMM dd, h:mm a').format(parsedDate),
             credit: t['credit']?.toDouble() ?? 0.0,
@@ -1064,73 +1073,13 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                           ),
                         ),
                         Builder(builder: (context) {
-                          Future<void> initiatePayment() async {
-                            setState(() {
-                              isLoading = true;
-                            });
-                            const merchantId = "JP2001100060862";
-                            const merchantKey = "7a18c8a8725247e698060c5771cab40d"; // ⚠️ DO NOT PUT IN PROD
-
-                            final merchantTxnNo = "Txn${DateTime.now().millisecondsSinceEpoch}";
-                            final txnDate = DateTime.now().toIso8601String().replaceAll(RegExp(r'[-:.TZ]'), '').substring(0, 14);
-                            const returnUrl = "https://uat.jiopay.co.in/tsp/pg/api/merchant";
-
-                            final payload = {
-                              "merchantId": merchantId,
-                              "merchantTxnNo": merchantTxnNo,
-                              "amount": creditBalance,
-                              "currencyCode": "356",
-                              "payType": "0",
-                              "customerEmailID": "test@example.com",
-                              "transactionType": "SALE",
-                              "returnURL": returnUrl,
-                              "txnDate": txnDate,
-                            };
-                            final secureHash = generateSecureHash(payload, merchantKey);
-                            payload.addAll({
-                              "secureHash": secureHash,
-                            });
-                            try {
-                              final response = await http.post(
-                                Uri.parse("https://uat.jiopay.co.in/tsp/pg/api/v2/initiateSale"),
-                                headers: {"Content-Type": "application/json"},
-                                body: jsonEncode(payload),
-                              );
-
-                              final data = jsonDecode(response.body);
-                              log(data.toString());
-                              final redirectUri = data["redirectURI"];
-                              final tranCtx = data["tranCtx"];
-
-                              if (redirectUri != null && tranCtx != null) {
-                                final prefs = await SharedPreferences.getInstance();
-                                await prefs.setString("jiopay_merchantId", merchantId);
-                                await prefs.setString("jiopay_merchantKey", merchantKey);
-                                await prefs.setString("jiopay_merchantTxnNo", merchantTxnNo);
-                                setState(() {
-                                  showVerifyButton = true;
-                                });
-                                final fullUrl = "$redirectUri?tranCtx=$tranCtx";
-                                Navigator.push(context, MaterialPageRoute(builder: (context) => PaymentScreen(htmlResponse: fullUrl)));
-                                // await launchUrl(Uri.parse(fullUrl), mode: LaunchMode.externalApplication);
-                              } else {
-                                debugPrint("Invalid JioPay response: $data");
-                              }
-                            } catch (e) {
-                              log(e.toString());
-                              debugPrint("Error initiating payment: $e");
-                            }
-                            setState(() {
-                              isLoading = false;
-                            });
-                          }
-
                           return ElevatedButton(
                             onPressed: creditBalance > 0
                                 ? isLoading
                                     ? null
                                     : () {
-                                        initiatePayment();
+                                        if (showVerifyButton) return showPaymentPendingDialog(context);
+                                        showAmountInputDialog(context, creditBalance);
                                       }
                                 : null,
                             style: ElevatedButton.styleFrom(
@@ -1292,7 +1241,11 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   GestureDetector(
-                    onTap: isLoading ? null : checkJioPayStatus,
+                    onTap: isLoading
+                        ? null
+                        : () {
+                            checkJioPayStatus();
+                          },
                     child: Container(
                       width: double.infinity,
                       height: 50,
@@ -1321,6 +1274,146 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     );
   }
 
+  void showAmountInputDialog(BuildContext context, double maxAmount) {
+    final TextEditingController controller = TextEditingController(text: maxAmount.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: Colors.white,
+          elevation: 10,
+          title: const Center(
+            child: Text(
+              "Enter Amount",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          content: SizedBox(
+            height: 80,
+            child: Column(
+              children: [
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 18),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                    // _MaxAmountInputFormatter(maxAmount),
+                  ],
+                  decoration: InputDecoration(
+                    hintText: "Enter amount ≤ ${maxAmount.toStringAsFixed(0)}",
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Colors.blue),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actionsPadding: const EdgeInsets.only(right: 16, bottom: 10),
+          actionsAlignment: MainAxisAlignment.end,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade700,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: isLoading
+                  ? null
+                  : () {
+                      final entered = double.tryParse(controller.text) ?? 0;
+                      if (entered > 0 && entered <= maxAmount) {
+                        Navigator.pop(context);
+                        initiatePayment(entered);
+                      }
+                    },
+              child: const Text(
+                "Confirm",
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> initiatePayment(double amount) async {
+    setState(() {
+      isLoading = true;
+    });
+    const merchantId = "JP2001100060862";
+    const merchantKey = "7a18c8a8725247e698060c5771cab40d"; // ⚠️ DO NOT PUT IN PROD
+
+    final merchantTxnNo = "Txn${DateTime.now().millisecondsSinceEpoch}";
+    final txnDate = DateTime.now().toIso8601String().replaceAll(RegExp(r'[-:.TZ]'), '').substring(0, 14);
+    const returnUrl = "https://uat.jiopay.co.in/tsp/pg/api/merchant";
+
+    final payload = {
+      "merchantId": merchantId,
+      "merchantTxnNo": merchantTxnNo,
+      "amount": amount,
+      "currencyCode": "356",
+      "payType": "0",
+      "customerEmailID": "test@example.com",
+      "transactionType": "SALE",
+      "returnURL": returnUrl,
+      "txnDate": txnDate,
+    };
+    final secureHash = generateSecureHash(payload, merchantKey);
+    payload.addAll({
+      "secureHash": secureHash,
+    });
+    try {
+      final response = await http.post(
+        Uri.parse("https://uat.jiopay.co.in/tsp/pg/api/v2/initiateSale"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(payload),
+      );
+
+      final data = jsonDecode(response.body);
+      log(data.toString());
+      final redirectUri = data["redirectURI"];
+      final tranCtx = data["tranCtx"];
+
+      if (redirectUri != null && tranCtx != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString("jiopay_merchantId", merchantId);
+        await prefs.setString("jiopay_merchantKey", merchantKey);
+        await prefs.setString("jiopay_merchantTxnNo", merchantTxnNo);
+        await prefs.setString("jiopay_amount", amount.toString());
+        setState(() {
+          showVerifyButton = true;
+        });
+        final fullUrl = "$redirectUri?tranCtx=$tranCtx";
+        Navigator.push(context, MaterialPageRoute(builder: (context) => PaymentScreen(htmlResponse: fullUrl)));
+        // await launchUrl(Uri.parse(fullUrl), mode: LaunchMode.externalApplication);
+      } else {
+        debugPrint("Invalid JioPay response: $data");
+      }
+    } catch (e) {
+      log(e.toString());
+      debugPrint("Error initiating payment: $e");
+    }
+    setState(() {
+      isLoading = false;
+    });
+  }
+
   Future<void> checkJioPayStatus() async {
     setState(() {
       isLoading = true;
@@ -1329,6 +1422,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     final merchantId = prefs.getString("jiopay_merchantId") ?? "";
     final merchantTxnNo = prefs.getString("jiopay_merchantTxnNo") ?? "";
     final merchantKey = prefs.getString("jiopay_merchantKey") ?? "";
+    final amountPaid = prefs.getString("jiopay_amount") ?? "";
 
     if (merchantId.isEmpty || merchantTxnNo.isEmpty || merchantKey.isEmpty) {
       debugPrint("Missing transaction data. Cannot check status.");
@@ -1339,8 +1433,8 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     Map<String, dynamic> statusParams = {
       "merchantId": "JP2001100060862",
       "transactionType": "STATUS",
-      "merchantTxnNo": merchantTxnNo, // same txn no used in initiate
-      "originalTxnNo": merchantTxnNo, // same as above
+      "merchantTxnNo": merchantTxnNo,
+      "originalTxnNo": merchantTxnNo,
     };
 
     final secureHash = generateSecureHash(
@@ -1373,17 +1467,61 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
       final txnResponseCode = result["txnResponseCode"];
 
       if (txnStatus == "SUC" && txnResponseCode == "0000") {
-        debugPrint("✅ Payment Successful: $txnRespDescription");
-      } else if (txnStatus == "REJ") {
-        debugPrint("❌ Payment Rejected: $txnRespDescription");
+        try {
+          final parsedDriverId = int.parse(widget.transactions.first.driverId);
+          log(parsedDriverId.toString());
+          final newBalance = creditBalance - double.parse(amountPaid);
+          print('Inserting payment transaction with driver_id: $parsedDriverId');
+          await _supabase.from('transactions').insert({
+            'user_id': widget.transactions.first.userId,
+            'date': DateTime.now().toIso8601String(),
+            'credit': 0.0,
+            'paid': amountPaid,
+            'balance': newBalance,
+            'mode_of_payment': "UPI",
+            'driver_id': parsedDriverId,
+          }).then((value) async {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Transaction successfull')),
+            );
+            _loadCreditData();
+          });
+
+          setState(() {
+            creditBalance = newBalance;
+            isLoading = false;
+          });
+
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Payment recorded successfully')),
+          );
+        } catch (e) {
+          log(e.toString());
+          print('Error in _showPaymentDialog: $e');
+          setState(() {
+            isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to record payment: $e')),
+          );
+        }
       } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Transaction Failed')),
+        );
         debugPrint("⌛ Pending/Unknown: $txnRespDescription");
       }
     } else {
       debugPrint("❌ Failed to fetch payment status. HTTP ${response.statusCode}");
     }
+    await prefs.remove("jiopay_merchantId");
+    await prefs.remove("jiopay_merchantTxnNo");
+    await prefs.remove("jiopay_merchantKey");
+    await prefs.remove("jiopay_amount");
     setState(() {
       isLoading = false;
+      showVerifyButton = false;
     });
   }
 
@@ -1408,4 +1546,91 @@ extension StringExtension on String {
   String capitalize() {
     return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
   }
+}
+
+class _MaxAmountInputFormatter extends TextInputFormatter {
+  final double max;
+
+  _MaxAmountInputFormatter(this.max);
+
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    try {
+      final value = double.tryParse(newValue.text);
+      if (value == null || value > max) return oldValue;
+    } catch (_) {
+      return oldValue;
+    }
+    return newValue;
+  }
+}
+
+void showPaymentPendingDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => Dialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orangeAccent,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              "Action Needed",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              "You haven’t verified the payment yet.\nPlease tap the 'Verify Payment' button to check payment status.",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF184C98),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text(
+                "Okay",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
