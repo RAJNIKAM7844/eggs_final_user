@@ -1,8 +1,15 @@
+import 'dart:convert';
+import 'dart:developer';
+
+import 'package:EggPort/payment_screen.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:EggPort/home_page.dart';
 import 'package:EggPort/widgets/custom_background.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 
 class Transaction {
   final String id;
@@ -66,18 +73,10 @@ class _FirstPageState extends State<FirstPage> {
         return;
       }
 
-      var userResponse = await _supabase
-          .from('users')
-          .select('role, profile_image')
-          .eq('id', userId)
-          .maybeSingle();
+      var userResponse = await _supabase.from('users').select('role, profile_image').eq('id', userId).maybeSingle();
 
       if (userResponse == null || userResponse['role'] == null) {
-        userResponse = await _supabase
-            .from('wholesale_users')
-            .select('role, profile_image')
-            .eq('id', userId)
-            .maybeSingle();
+        userResponse = await _supabase.from('wholesale_users').select('role, profile_image').eq('id', userId).maybeSingle();
       }
 
       if (userResponse == null || userResponse['role'] == null) {
@@ -89,9 +88,7 @@ class _FirstPageState extends State<FirstPage> {
         if (userResponse != null && userResponse['profile_image'] != null) {
           final imagePath = userResponse['profile_image'];
           if (imagePath.startsWith('userprofile/')) {
-            _profileImageUrl = _supabase.storage
-                .from('userprofile')
-                .getPublicUrl(imagePath.replaceFirst('userprofile/', ''));
+            _profileImageUrl = _supabase.storage.from('userprofile').getPublicUrl(imagePath.replaceFirst('userprofile/', ''));
           } else {
             _profileImageUrl = imagePath;
           }
@@ -131,36 +128,22 @@ class _FirstPageState extends State<FirstPage> {
 
       if (_userRole == 'wholesale') {
         print('Fetching from wholesale_crates for wholesale_user_id: $userId');
-        final response = await _supabase
-            .from('wholesale_crates')
-            .select('quantity')
-            .eq('wholesale_user_id', userId)
-            .order('updated_at', ascending: false)
-            .limit(1)
-            .maybeSingle();
+        final response = await _supabase.from('wholesale_crates').select('quantity').eq('wholesale_user_id', userId).order('updated_at', ascending: false).limit(1).maybeSingle();
 
         print('Wholesale crates response: $response');
 
         setState(() {
-          crateQuantity = response != null && response['quantity'] != null
-              ? response['quantity'].toDouble()
-              : 0.0;
+          crateQuantity = response != null && response['quantity'] != null ? response['quantity'].toDouble() : 0.0;
           print('Wholesale crate quantity set to: $crateQuantity');
         });
       } else {
         print('Fetching from crates for user_id: $userId');
-        final response = await _supabase
-            .from('crates')
-            .select('quantity')
-            .eq('user_id', userId)
-            .maybeSingle();
+        final response = await _supabase.from('crates').select('quantity').eq('user_id', userId).maybeSingle();
 
         print('Customer crates response: $response');
 
         setState(() {
-          crateQuantity = response != null && response['quantity'] != null
-              ? response['quantity'].toDouble()
-              : 0.0;
+          crateQuantity = response != null && response['quantity'] != null ? response['quantity'].toDouble() : 0.0;
           print('Customer crate quantity set to: $crateQuantity');
         });
       }
@@ -180,14 +163,9 @@ class _FirstPageState extends State<FirstPage> {
         return;
       }
 
-      final transactionsTable =
-          _userRole == 'wholesale' ? 'wholesale_transaction' : 'transactions';
+      final transactionsTable = _userRole == 'wholesale' ? 'wholesale_transaction' : 'transactions';
 
-      final transactionsResponse = await _supabase
-          .from(transactionsTable)
-          .select('id, date, credit, paid, balance, mode_of_payment')
-          .eq('user_id', userId)
-          .order('date', ascending: false);
+      final transactionsResponse = await _supabase.from(transactionsTable).select('id, date, credit, paid, balance, mode_of_payment').eq('user_id', userId).order('date', ascending: false);
 
       setState(() {
         double totalCredit = transactionsResponse.fold(0.0, (sum, t) {
@@ -199,16 +177,14 @@ class _FirstPageState extends State<FirstPage> {
         creditBalance = totalCredit - totalPaid;
 
         transactions = transactionsResponse.map<Transaction>((t) {
-          String dateStr =
-              t['date']?.toString() ?? DateTime.now().toIso8601String();
+          String dateStr = t['date']?.toString() ?? DateTime.now().toIso8601String();
           DateTime parsedDate;
           try {
             parsedDate = DateTime.parse(dateStr);
           } catch (e) {
             try {
               parsedDate = DateFormat('MMM dd').parse(dateStr);
-              parsedDate = DateTime(
-                  DateTime.now().year, parsedDate.month, parsedDate.day);
+              parsedDate = DateTime(DateTime.now().year, parsedDate.month, parsedDate.day);
             } catch (e) {
               print('Error parsing date $dateStr: $e');
               parsedDate = DateTime.now();
@@ -240,8 +216,7 @@ class _FirstPageState extends State<FirstPage> {
       return;
     }
 
-    final transactionsTable =
-        _userRole == 'wholesale' ? 'wholesale_transaction' : 'transactions';
+    final transactionsTable = _userRole == 'wholesale' ? 'wholesale_transaction' : 'transactions';
 
     _supabase
         .channel('transactions_user_$userId')
@@ -264,21 +239,14 @@ class _FirstPageState extends State<FirstPage> {
 
   Future<void> _loadEggRate() async {
     try {
-      final eggRateTable =
-          _userRole == 'wholesale' ? 'wholesale_eggrate' : 'egg_rates';
+      final eggRateTable = _userRole == 'wholesale' ? 'wholesale_eggrate' : 'egg_rates';
 
-      final response = await _supabase
-          .from(eggRateTable)
-          .select('rate, updated_at')
-          .eq('id', 1)
-          .maybeSingle();
+      final response = await _supabase.from(eggRateTable).select('rate, updated_at').eq('id', 1).maybeSingle();
 
       if (response != null && response['rate'] != null) {
         setState(() {
           targetRate = response['rate'].toDouble();
-          _lastUpdated = response['updated_at'] != null
-              ? DateTime.parse(response['updated_at'].toString())
-              : null;
+          _lastUpdated = response['updated_at'] != null ? DateTime.parse(response['updated_at'].toString()) : null;
         });
       } else {
         setState(() {
@@ -298,11 +266,7 @@ class _FirstPageState extends State<FirstPage> {
 
   Future<void> _loadNeccEggRate() async {
     try {
-      final response = await _supabase
-          .from('necc_eggrate')
-          .select('rate')
-          .eq('id', 1)
-          .maybeSingle();
+      final response = await _supabase.from('necc_eggrate').select('rate').eq('id', 1).maybeSingle();
 
       if (response != null && response['rate'] != null) {
         setState(() {
@@ -353,8 +317,7 @@ class _FirstPageState extends State<FirstPage> {
             eggRate = double.parse(currentEggRate.toStringAsFixed(2));
           }
           if (currentNeccRate < targetNeccRate) {
-            currentNeccRate =
-                (currentNeccRate + step).clamp(1.0, targetNeccRate);
+            currentNeccRate = (currentNeccRate + step).clamp(1.0, targetNeccRate);
             neccEggRate = double.parse(currentNeccRate.toStringAsFixed(2));
           }
         });
@@ -394,13 +357,10 @@ class _FirstPageState extends State<FirstPage> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             margin: EdgeInsets.symmetric(horizontal: size.width * 0.01),
-            width:
-                _currentPage == index ? size.width * 0.03 : size.width * 0.02,
+            width: _currentPage == index ? size.width * 0.03 : size.width * 0.02,
             height: size.height * 0.01,
             decoration: BoxDecoration(
-              color: _currentPage == index
-                  ? const Color.fromARGB(255, 0, 79, 188)
-                  : const Color(0xFF757575),
+              color: _currentPage == index ? const Color.fromARGB(255, 0, 79, 188) : const Color(0xFF757575),
               borderRadius: BorderRadius.circular(size.width * 0.01),
             ),
           ),
@@ -455,23 +415,17 @@ class _FirstPageState extends State<FirstPage> {
                         },
                         child: Card(
                           shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(size.width * 0.03),
+                            borderRadius: BorderRadius.circular(size.width * 0.03),
                           ),
                           elevation: 6,
                           child: Padding(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: size.width * 0.04,
-                                vertical: size.height * 0.01),
+                            padding: EdgeInsets.symmetric(horizontal: size.width * 0.04, vertical: size.height * 0.01),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   'Credit: ₹${creditBalance.toStringAsFixed(2)}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyLarge!
-                                      .copyWith(
+                                  style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                                         fontWeight: FontWeight.w600,
                                         color: const Color(0xFF0288D1),
                                         fontSize: size.width * 0.04,
@@ -481,10 +435,7 @@ class _FirstPageState extends State<FirstPage> {
                                 SizedBox(height: size.height * 0.005),
                                 Text(
                                   'Crates: ${crateQuantity.toStringAsFixed(0)} = ₹${(crateQuantity * 35).toStringAsFixed(2)}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyLarge!
-                                      .copyWith(
+                                  style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                                         fontWeight: FontWeight.w600,
                                         color: const Color(0xFF0288D1),
                                         fontSize: size.width * 0.04,
@@ -501,8 +452,7 @@ class _FirstPageState extends State<FirstPage> {
                           Navigator.push(
                             context,
                             PageRouteBuilder(
-                              pageBuilder: (_, __, ___) =>
-                                  const HomePage(initialIndex: 3),
+                              pageBuilder: (_, __, ___) => const HomePage(initialIndex: 3),
                               transitionsBuilder: (_, animation, __, child) {
                                 return FadeTransition(
                                   opacity: animation,
@@ -517,12 +467,8 @@ class _FirstPageState extends State<FirstPage> {
                           child: CircleAvatar(
                             radius: size.width * 0.06,
                             backgroundColor: const Color(0xFFFFFFFF),
-                            backgroundImage: _profileImageUrl != null &&
-                                    !_isLoadingProfileImage
-                                ? NetworkImage(_profileImageUrl!)
-                                : null,
-                            child: _profileImageUrl == null ||
-                                    _isLoadingProfileImage
+                            backgroundImage: _profileImageUrl != null && !_isLoadingProfileImage ? NetworkImage(_profileImageUrl!) : null,
+                            child: _profileImageUrl == null || _isLoadingProfileImage
                                 ? Icon(
                                     Icons.person,
                                     color: const Color(0xFF757575),
@@ -542,17 +488,14 @@ class _FirstPageState extends State<FirstPage> {
                     child: PageView.builder(
                       controller: _pageController,
                       itemCount: images.length,
-                      onPageChanged: (index) =>
-                          setState(() => _currentPage = index),
+                      onPageChanged: (index) => setState(() => _currentPage = index),
                       itemBuilder: (context, index) {
                         return Padding(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: size.width * 0.04),
+                          padding: EdgeInsets.symmetric(horizontal: size.width * 0.04),
                           child: Hero(
                             tag: 'carousel-image-$index',
                             child: ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(size.width * 0.04),
+                              borderRadius: BorderRadius.circular(size.width * 0.04),
                               child: Image.asset(
                                 images[index],
                                 fit: BoxFit.cover,
@@ -573,16 +516,13 @@ class _FirstPageState extends State<FirstPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      _userRole == 'wholesale'
-                          ? 'Wholesale Egg Rate In'
-                          : 'NECC Egg Rate In',
+                      _userRole == 'wholesale' ? 'Wholesale Egg Rate In' : 'NECC Egg Rate In',
                       textAlign: TextAlign.center,
-                      style:
-                          Theme.of(context).textTheme.headlineSmall!.copyWith(
-                                fontWeight: FontWeight.w800,
-                                fontSize: size.width * 0.08,
-                                color: const Color(0xFF0288D1),
-                              ),
+                      style: Theme.of(context).textTheme.headlineSmall!.copyWith(
+                            fontWeight: FontWeight.w800,
+                            fontSize: size.width * 0.08,
+                            color: const Color(0xFF0288D1),
+                          ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     SizedBox(height: size.height * 0.005),
@@ -593,10 +533,7 @@ class _FirstPageState extends State<FirstPage> {
                           child: Text(
                             'Bengaluru',
                             textAlign: TextAlign.center,
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall!
-                                .copyWith(
+                            style: Theme.of(context).textTheme.headlineSmall!.copyWith(
                                   fontWeight: FontWeight.w800,
                                   fontSize: size.width * 0.08,
                                   color: const Color(0xFF0288D1),
@@ -610,23 +547,16 @@ class _FirstPageState extends State<FirstPage> {
                           duration: const Duration(milliseconds: 200),
                           child: Card(
                             shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(size.width * 0.02),
+                              borderRadius: BorderRadius.circular(size.width * 0.02),
                             ),
                             elevation: 4,
                             child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: size.width * 0.02,
-                                  vertical: size.height * 0.005),
+                              padding: EdgeInsets.symmetric(horizontal: size.width * 0.02, vertical: size.height * 0.005),
                               child: Text(
                                 '₹${neccEggRate.toStringAsFixed(2)}',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyLarge!
-                                    .copyWith(
+                                style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                                       fontWeight: FontWeight.w600,
-                                      color: const Color.fromARGB(
-                                          255, 0, 134, 224),
+                                      color: const Color.fromARGB(255, 0, 134, 224),
                                       fontSize: size.width * 0.04,
                                     ),
                               ),
@@ -647,15 +577,10 @@ class _FirstPageState extends State<FirstPage> {
                     ),
                     elevation: 6,
                     child: Padding(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: size.width * 0.06,
-                          vertical: size.height * 0.02),
+                      padding: EdgeInsets.symmetric(horizontal: size.width * 0.06, vertical: size.height * 0.02),
                       child: Text(
                         '₹${eggRate.toStringAsFixed(2)}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium!
-                            .copyWith(
+                        style: Theme.of(context).textTheme.headlineMedium!.copyWith(
                               fontWeight: FontWeight.w800,
                               color: const Color.fromARGB(255, 0, 134, 224),
                               fontSize: size.width * 0.12,
@@ -680,17 +605,11 @@ class _FirstPageState extends State<FirstPage> {
                       children: [
                         const TextSpan(text: "At "),
                         TextSpan(
-                          text: _userRole == 'wholesale'
-                              ? "HMS EGG DISTRIBUTORS - Wholesale"
-                              : "HMS EGG DISTRIBUTORS",
-                          style: const TextStyle(
-                              fontSize: 17,
-                              color: Color.fromARGB(255, 255, 12, 12),
-                              fontWeight: FontWeight.bold),
+                          text: _userRole == 'wholesale' ? "HMS EGG DISTRIBUTORS - Wholesale" : "HMS EGG DISTRIBUTORS",
+                          style: const TextStyle(fontSize: 17, color: Color.fromARGB(255, 255, 12, 12), fontWeight: FontWeight.bold),
                         ),
                         const TextSpan(
-                          text:
-                              ", we take pride in delivering the finest quality eggs to your shop.....",
+                          text: ", we take pride in delivering the finest quality eggs to your shop.....",
                         ),
                       ],
                       style: Theme.of(context).textTheme.bodyLarge!.copyWith(
@@ -733,6 +652,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
   final _supabase = Supabase.instance.client;
   bool isLoading = false;
   int currentPage = 1;
+  bool showVerifyButton = false;
   static const int itemsPerPage = 5;
   String sortBy = 'date';
   bool sortAscending = true;
@@ -746,6 +666,17 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     transactions = widget.transactions;
     _loadCreditData();
     _setupRealtimeSubscription();
+    showVerifyButtonActivte();
+  }
+
+  showVerifyButtonActivte() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString("jiopay_merchantId");
+    if (value != null && value.isNotEmpty) {
+      setState(() {
+        showVerifyButton = true;
+      });
+    }
   }
 
   void _setupRealtimeSubscription() {
@@ -755,9 +686,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
       return;
     }
 
-    final transactionsTable = widget.userRole == 'wholesale'
-        ? 'wholesale_transaction'
-        : 'transactions';
+    final transactionsTable = widget.userRole == 'wholesale' ? 'wholesale_transaction' : 'transactions';
 
     _supabase
         .channel('credit_details_user_$userId')
@@ -771,8 +700,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
             value: userId,
           ),
           callback: (payload) {
-            print(
-                'Real-time transaction update for ${widget.userRole}: $payload');
+            print('Real-time transaction update for ${widget.userRole}: $payload');
             _loadCreditData();
           },
         )
@@ -793,15 +721,9 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
         return;
       }
 
-      final transactionsTable = widget.userRole == 'wholesale'
-          ? 'wholesale_transaction'
-          : 'transactions';
+      final transactionsTable = widget.userRole == 'wholesale' ? 'wholesale_transaction' : 'transactions';
 
-      final transactionsResponse = await _supabase
-          .from(transactionsTable)
-          .select('id, date, credit, paid, balance, mode_of_payment')
-          .eq('user_id', userId)
-          .order('date', ascending: false);
+      final transactionsResponse = await _supabase.from(transactionsTable).select('id, date, credit, paid, balance, mode_of_payment').eq('user_id', userId).order('date', ascending: false);
 
       setState(() {
         double totalCredit = transactionsResponse.fold(0.0, (sum, t) {
@@ -813,16 +735,14 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
         creditBalance = totalCredit - totalPaid;
 
         transactions = transactionsResponse.map<Transaction>((t) {
-          String dateStr =
-              t['date']?.toString() ?? DateTime.now().toIso8601String();
+          String dateStr = t['date']?.toString() ?? DateTime.now().toIso8601String();
           DateTime parsedDate;
           try {
             parsedDate = DateTime.parse(dateStr);
           } catch (e) {
             try {
               parsedDate = DateFormat('MMM dd').parse(dateStr);
-              parsedDate = DateTime(
-                  DateTime.now().year, parsedDate.month, parsedDate.day);
+              parsedDate = DateTime(DateTime.now().year, parsedDate.month, parsedDate.day);
             } catch (e) {
               print('Error parsing date $dateStr: $e');
               parsedDate = DateTime.now();
@@ -861,25 +781,15 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     transactions.sort((a, b) {
       switch (sortBy) {
         case 'date':
-          return sortAscending
-              ? a.date.compareTo(b.date)
-              : b.date.compareTo(a.date);
+          return sortAscending ? a.date.compareTo(b.date) : b.date.compareTo(a.date);
         case 'credit':
-          return sortAscending
-              ? a.credit.compareTo(b.credit)
-              : b.credit.compareTo(a.credit);
+          return sortAscending ? a.credit.compareTo(b.credit) : b.credit.compareTo(a.credit);
         case 'paid':
-          return sortAscending
-              ? a.paid.compareTo(b.paid)
-              : b.paid.compareTo(a.paid);
+          return sortAscending ? a.paid.compareTo(b.paid) : b.paid.compareTo(a.paid);
         case 'balance':
-          return sortAscending
-              ? a.balance.compareTo(b.balance)
-              : b.balance.compareTo(a.balance);
+          return sortAscending ? a.balance.compareTo(b.balance) : b.balance.compareTo(a.balance);
         case 'modeOfPayment':
-          return sortAscending
-              ? a.modeOfPayment.compareTo(b.modeOfPayment)
-              : b.modeOfPayment.compareTo(a.modeOfPayment);
+          return sortAscending ? a.modeOfPayment.compareTo(b.modeOfPayment) : b.modeOfPayment.compareTo(a.modeOfPayment);
         default:
           return 0;
       }
@@ -890,12 +800,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     if (searchQuery == null || searchQuery!.isEmpty) return;
     transactions = transactions.where((t) {
       final query = searchQuery!.toLowerCase();
-      return t.id.toLowerCase().contains(query) ||
-          t.date.toLowerCase().contains(query) ||
-          t.modeOfPayment.toLowerCase().contains(query) ||
-          t.credit.toString().contains(query) ||
-          t.paid.toString().contains(query) ||
-          t.balance.toString().contains(query);
+      return t.id.toLowerCase().contains(query) || t.date.toLowerCase().contains(query) || t.modeOfPayment.toLowerCase().contains(query) || t.credit.toString().contains(query) || t.paid.toString().contains(query) || t.balance.toString().contains(query);
     }).toList();
   }
 
@@ -909,17 +814,12 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final paginatedTransactions = transactions
-        .skip((currentPage - 1) * itemsPerPage)
-        .take(itemsPerPage)
-        .toList();
+    final paginatedTransactions = transactions.skip((currentPage - 1) * itemsPerPage).take(itemsPerPage).toList();
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.userRole == 'wholesale'
-              ? 'Wholesale Credit Details'
-              : 'Credit Details',
+          widget.userRole == 'wholesale' ? 'Wholesale Credit Details' : 'Credit Details',
           style: TextStyle(
             fontSize: size.width * 0.05,
             color: const Color(0xFFFFFFFF),
@@ -951,13 +851,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                         DropdownButton<String>(
                           value: sortBy,
                           isExpanded: true,
-                          items: [
-                            'date',
-                            'credit',
-                            'paid',
-                            'balance',
-                            'modeOfPayment'
-                          ]
+                          items: ['date', 'credit', 'paid', 'balance', 'modeOfPayment']
                               .map((String value) => DropdownMenuItem<String>(
                                     value: value,
                                     child: Text(
@@ -1050,13 +944,8 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                           children: [
                             Flexible(
                               child: Text(
-                                widget.userRole == 'wholesale'
-                                    ? 'Wholesale Credit Balance:'
-                                    : 'Credit Balance:',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleLarge!
-                                    .copyWith(
+                                widget.userRole == 'wholesale' ? 'Wholesale Credit Balance:' : 'Credit Balance:',
+                                style: Theme.of(context).textTheme.titleLarge!.copyWith(
                                       fontSize: size.width * 0.045,
                                       color: const Color(0xFF0288D1),
                                     ),
@@ -1065,14 +954,9 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                             ),
                             Text(
                               '₹${creditBalance.toStringAsFixed(2)}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleLarge!
-                                  .copyWith(
+                              style: Theme.of(context).textTheme.titleLarge!.copyWith(
                                     fontSize: size.width * 0.045,
-                                    color: creditBalance > 0
-                                        ? const Color(0xFFD32F2F)
-                                        : const Color(0xFF388E3C),
+                                    color: creditBalance > 0 ? const Color(0xFFD32F2F) : const Color(0xFF388E3C),
                                   ),
                             ),
                           ],
@@ -1083,20 +967,14 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                           children: [
                             Text(
                               'Total Credit:',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge!
-                                  .copyWith(
+                              style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                                     fontSize: size.width * 0.04,
                                     color: const Color(0xFF757575),
                                   ),
                             ),
                             Text(
                               '₹${transactions.fold(0.0, (sum, t) => sum + t.credit).toStringAsFixed(2)}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge!
-                                  .copyWith(
+                              style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                                     fontSize: size.width * 0.04,
                                     color: const Color(0xFF388E3C),
                                   ),
@@ -1108,20 +986,14 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                           children: [
                             Text(
                               'Total Paid:',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge!
-                                  .copyWith(
+                              style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                                     fontSize: size.width * 0.04,
                                     color: const Color(0xFF757575),
                                   ),
                             ),
                             Text(
                               '₹${transactions.fold(0.0, (sum, t) => sum + t.paid).toStringAsFixed(2)}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge!
-                                  .copyWith(
+                              style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                                     fontSize: size.width * 0.04,
                                     color: const Color(0xFF0288D1),
                                   ),
@@ -1183,55 +1055,105 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                       children: [
                         Flexible(
                           child: Text(
-                            widget.userRole == 'wholesale'
-                                ? 'Make a Wholesale Payment'
-                                : 'Make a Payment',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge!
-                                .copyWith(
+                            widget.userRole == 'wholesale' ? 'Make a Wholesale Payment' : 'Make a Payment',
+                            style: Theme.of(context).textTheme.titleLarge!.copyWith(
                                   fontSize: size.width * 0.045,
                                   color: const Color(0xFF0288D1),
                                 ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        ElevatedButton(
-                          onPressed: creditBalance > 0
-                              ? () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                          'Payment methods are yet to be added'),
-                                    ),
-                                  );
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0288D1),
-                            foregroundColor: const Color(0xFFFFFFFF),
-                            padding: EdgeInsets.symmetric(
-                                horizontal: size.width * 0.04,
-                                vertical: size.height * 0.015),
-                            shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(size.width * 0.03),
+                        Builder(builder: (context) {
+                          Future<void> initiatePayment() async {
+                            setState(() {
+                              isLoading = true;
+                            });
+                            const merchantId = "JP2001100060862";
+                            const merchantKey = "7a18c8a8725247e698060c5771cab40d"; // ⚠️ DO NOT PUT IN PROD
+
+                            final merchantTxnNo = "Txn${DateTime.now().millisecondsSinceEpoch}";
+                            final txnDate = DateTime.now().toIso8601String().replaceAll(RegExp(r'[-:.TZ]'), '').substring(0, 14);
+                            const returnUrl = "https://uat.jiopay.co.in/tsp/pg/api/merchant";
+
+                            final payload = {
+                              "merchantId": merchantId,
+                              "merchantTxnNo": merchantTxnNo,
+                              "amount": creditBalance,
+                              "currencyCode": "356",
+                              "payType": "0",
+                              "customerEmailID": "test@example.com",
+                              "transactionType": "SALE",
+                              "returnURL": returnUrl,
+                              "txnDate": txnDate,
+                            };
+                            final secureHash = generateSecureHash(payload, merchantKey);
+                            payload.addAll({
+                              "secureHash": secureHash,
+                            });
+                            try {
+                              final response = await http.post(
+                                Uri.parse("https://uat.jiopay.co.in/tsp/pg/api/v2/initiateSale"),
+                                headers: {"Content-Type": "application/json"},
+                                body: jsonEncode(payload),
+                              );
+
+                              final data = jsonDecode(response.body);
+                              log(data.toString());
+                              final redirectUri = data["redirectURI"];
+                              final tranCtx = data["tranCtx"];
+
+                              if (redirectUri != null && tranCtx != null) {
+                                final prefs = await SharedPreferences.getInstance();
+                                await prefs.setString("jiopay_merchantId", merchantId);
+                                await prefs.setString("jiopay_merchantKey", merchantKey);
+                                await prefs.setString("jiopay_merchantTxnNo", merchantTxnNo);
+                                setState(() {
+                                  showVerifyButton = true;
+                                });
+                                final fullUrl = "$redirectUri?tranCtx=$tranCtx";
+                                Navigator.push(context, MaterialPageRoute(builder: (context) => PaymentScreen(htmlResponse: fullUrl)));
+                                // await launchUrl(Uri.parse(fullUrl), mode: LaunchMode.externalApplication);
+                              } else {
+                                debugPrint("Invalid JioPay response: $data");
+                              }
+                            } catch (e) {
+                              log(e.toString());
+                              debugPrint("Error initiating payment: $e");
+                            }
+                            setState(() {
+                              isLoading = false;
+                            });
+                          }
+
+                          return ElevatedButton(
+                            onPressed: creditBalance > 0
+                                ? isLoading
+                                    ? null
+                                    : () {
+                                        initiatePayment();
+                                      }
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0288D1),
+                              foregroundColor: const Color(0xFFFFFFFF),
+                              padding: EdgeInsets.symmetric(horizontal: size.width * 0.04, vertical: size.height * 0.015),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(size.width * 0.03),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            'Pay Now',
-                            style: TextStyle(fontSize: size.width * 0.04),
-                          ),
-                        ),
+                            child: Text(
+                              'Pay Now',
+                              style: TextStyle(fontSize: size.width * 0.04),
+                            ),
+                          );
+                        }),
                       ],
                     ),
                   ),
                 ),
                 SizedBox(height: size.height * 0.02),
                 Text(
-                  widget.userRole == 'wholesale'
-                      ? 'Wholesale Transaction History'
-                      : 'Customer Transaction History',
+                  widget.userRole == 'wholesale' ? 'Wholesale Transaction History' : 'Customer Transaction History',
                   style: Theme.of(context).textTheme.headlineSmall!.copyWith(
                         fontSize: size.width * 0.06,
                         color: const Color(0xFF0288D1),
@@ -1241,8 +1163,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                 if (isLoading)
                   Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          const Color(0xFF0288D1)),
+                      valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF0288D1)),
                     ),
                   )
                 else
@@ -1256,8 +1177,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                           final transaction = paginatedTransactions[index];
                           return Card(
                             shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(size.width * 0.03),
+                              borderRadius: BorderRadius.circular(size.width * 0.03),
                             ),
                             elevation: 6,
                             child: Padding(
@@ -1266,16 +1186,12 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Flexible(
                                         child: Text(
                                           transaction.modeOfPayment,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodyLarge!
-                                              .copyWith(
+                                          style: Theme.of(context).textTheme.bodyLarge!.copyWith(
                                                 fontWeight: FontWeight.w600,
                                                 color: const Color(0xFF0288D1),
                                                 fontSize: size.width * 0.04,
@@ -1288,44 +1204,30 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                                   SizedBox(height: size.height * 0.01),
                                   Text(
                                     'Date: ${transaction.date}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium!
-                                        .copyWith(
+                                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                                           fontSize: size.width * 0.035,
                                           color: const Color(0xFF757575),
                                         ),
                                   ),
                                   Text(
                                     'Credit: ₹${transaction.credit.toStringAsFixed(2)}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium!
-                                        .copyWith(
+                                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                                           fontSize: size.width * 0.035,
                                           color: const Color(0xFF388E3C),
                                         ),
                                   ),
                                   Text(
                                     'Paid: ₹${transaction.paid.toStringAsFixed(2)}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium!
-                                        .copyWith(
+                                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                                           fontSize: size.width * 0.035,
                                           color: const Color(0xFF0288D1),
                                         ),
                                   ),
                                   Text(
                                     'Balance: ₹${transaction.balance.toStringAsFixed(2)}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium!
-                                        .copyWith(
+                                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                                           fontSize: size.width * 0.035,
-                                          color: transaction.balance > 0
-                                              ? const Color(0xFFD32F2F)
-                                              : const Color(0xFF388E3C),
+                                          color: transaction.balance > 0 ? const Color(0xFFD32F2F) : const Color(0xFF388E3C),
                                         ),
                                   ),
                                 ],
@@ -1342,9 +1244,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                             icon: Icon(
                               Icons.chevron_left,
                               size: size.width * 0.06,
-                              color: currentPage > 1
-                                  ? const Color(0xFF0288D1)
-                                  : const Color(0xFF757575),
+                              color: currentPage > 1 ? const Color(0xFF0288D1) : const Color(0xFF757575),
                             ),
                             onPressed: currentPage > 1
                                 ? () {
@@ -1356,10 +1256,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                           ),
                           Text(
                             'Page $currentPage of ${((transactions.length - 1) ~/ itemsPerPage) + 1}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium!
-                                .copyWith(
+                            style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                                   fontSize: size.width * 0.035,
                                   color: const Color(0xFF757575),
                                 ),
@@ -1368,17 +1265,9 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                             icon: Icon(
                               Icons.chevron_right,
                               size: size.width * 0.06,
-                              color: currentPage <
-                                      ((transactions.length - 1) ~/
-                                              itemsPerPage) +
-                                          1
-                                  ? const Color(0xFF0288D1)
-                                  : const Color(0xFF757575),
+                              color: currentPage < ((transactions.length - 1) ~/ itemsPerPage) + 1 ? const Color(0xFF0288D1) : const Color(0xFF757575),
                             ),
-                            onPressed: currentPage <
-                                    ((transactions.length - 1) ~/
-                                            itemsPerPage) +
-                                        1
+                            onPressed: currentPage < ((transactions.length - 1) ~/ itemsPerPage) + 1
                                 ? () {
                                     setState(() {
                                       currentPage++;
@@ -1396,7 +1285,122 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
           ),
         ),
       ),
+      bottomNavigationBar: showVerifyButton
+          ? Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: isLoading ? null : checkJioPayStatus,
+                    child: Container(
+                      width: double.infinity,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Center(
+                        child: isLoading
+                            ? CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            : Text(
+                                "Verity Payment",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : null,
     );
+  }
+
+  Future<void> checkJioPayStatus() async {
+    setState(() {
+      isLoading = true;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    final merchantId = prefs.getString("jiopay_merchantId") ?? "";
+    final merchantTxnNo = prefs.getString("jiopay_merchantTxnNo") ?? "";
+    final merchantKey = prefs.getString("jiopay_merchantKey") ?? "";
+
+    if (merchantId.isEmpty || merchantTxnNo.isEmpty || merchantKey.isEmpty) {
+      debugPrint("Missing transaction data. Cannot check status.");
+      return;
+    }
+
+    const transactionType = "STATUS";
+    Map<String, dynamic> statusParams = {
+      "merchantId": "JP2001100060862",
+      "transactionType": "STATUS",
+      "merchantTxnNo": merchantTxnNo, // same txn no used in initiate
+      "originalTxnNo": merchantTxnNo, // same as above
+    };
+
+    final secureHash = generateSecureHash(
+      statusParams,
+      merchantKey,
+    );
+
+    final url = Uri.parse("https://uat.jiopay.co.in/tsp/pg/api/command");
+    final body = {
+      "merchantId": merchantId,
+      "transactionType": transactionType,
+      "merchantTxnNo": merchantTxnNo,
+      "originalTxnNo": merchantTxnNo,
+      "secureHash": secureHash,
+    };
+
+    final response = await http.post(
+      url,
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: body,
+    );
+
+    final result = jsonDecode(response.body);
+    log(result.toString());
+    if (response.statusCode == 200) {
+      debugPrint("🟢 JioPay Status Response: $result");
+
+      final txnStatus = result["txnStatus"];
+      final txnRespDescription = result["txnRespDescription"];
+      final txnResponseCode = result["txnResponseCode"];
+
+      if (txnStatus == "SUC" && txnResponseCode == "0000") {
+        debugPrint("✅ Payment Successful: $txnRespDescription");
+      } else if (txnStatus == "REJ") {
+        debugPrint("❌ Payment Rejected: $txnRespDescription");
+      } else {
+        debugPrint("⌛ Pending/Unknown: $txnRespDescription");
+      }
+    } else {
+      debugPrint("❌ Failed to fetch payment status. HTTP ${response.statusCode}");
+    }
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  String generateSecureHash(Map<String, dynamic> params, String merchantKey) {
+    // 1. Filter out null/empty values
+    final filtered = params.entries.where((e) => e.value.toString() != "").toList();
+
+    // 2. Sort keys in ascending order
+    filtered.sort((a, b) => a.key.compareTo(b.key));
+
+    final concatenatedValues = filtered.map((e) => e.value).join();
+
+    final key = utf8.encode(merchantKey);
+    final bytes = utf8.encode(concatenatedValues);
+    final hmacSha256 = Hmac(sha256, key);
+    final digest = hmacSha256.convert(bytes);
+    return digest.toString().toLowerCase();
   }
 }
 

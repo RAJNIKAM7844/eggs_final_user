@@ -79,26 +79,26 @@ class _MyAppState extends State<MyApp> {
     super.initState();
   }
 
-  void _handleDeepLink(Uri uri) {
-    print('Deep link received: $uri');
-    if (uri.path.contains('reset-password')) {
-      final token = uri.queryParameters['token'];
-      print('Token: $token');
-      if (token != null) {
-        Navigator.pushNamed(
-          context,
-          '/complete-reset',
-          arguments: {'token': token},
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid reset link')),
-        );
-      }
-    } else {
-      print('Deep link path does not match: ${uri.path}');
-    }
-  }
+  // void _handleDeepLink(Uri uri) {
+  //   print('Deep link received: $uri');
+  //   if (uri.path.contains('reset-password')) {
+  //     final token = uri.queryParameters['token'];
+  //     print('Token: $token');
+  //     if (token != null) {
+  //       Navigator.pushNamed(
+  //         context,
+  //         '/complete-reset',
+  //         arguments: {'token': token},
+  //       );
+  //     } else {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('Invalid reset link')),
+  //       );
+  //     }
+  //   } else {
+  //     print('Deep link path does not match: ${uri.path}');
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {

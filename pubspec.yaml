@@ -46,6 +46,9 @@ dependencies:
   shared_preferences: ^2.5.3
   intl: ^0.20.2
   flutter_image_compress: ^2.3.0
+  crypto: ^3.0.6
+  flutter_jiopay_pg: ^0.0.13
+  webview_flutter: ^4.13.0
 
 dev_dependencies:
   flutter_test:
