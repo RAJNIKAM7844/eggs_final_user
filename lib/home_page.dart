@@ -4,6 +4,7 @@ import 'package:EggPort/about.dart';
 import 'package:EggPort/contact.dart';
 import 'package:EggPort/first.dart';
 import 'package:EggPort/profile.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class HomePage extends StatefulWidget {
   final int initialIndex;
@@ -27,6 +28,9 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _selectedIndex = widget.initialIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_){
+      Permission.notification.request();
+    });
   }
 
   void _onItemTapped(int index) {

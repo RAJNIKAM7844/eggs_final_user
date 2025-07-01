@@ -36,7 +36,7 @@ Future<AuthResponse> googleSignIn() async {
   }
 
   // Check if the Google account's email is registered in the users table
-  final authService = AuthService();
+  // final authService = AuthService();
   final userProfile = await supabase
       .from('users')
       .select()

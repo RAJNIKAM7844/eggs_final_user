@@ -13,8 +13,7 @@ Future<void> main() async {
   // Initialize Supabase
   await Supabase.initialize(
     url: 'https://kwoxhpztkxzqetwanlxx.supabase.co',
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3b3hocHp0a3h6cWV0d2FubHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxMjQyMTAsImV4cCI6MjA2MDcwMDIxMH0.jEIMSnX6-uEA07gjnQKdEXO20Zlpw4XPybfeLQr7W-M',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3b3hocHp0a3h6cWV0d2FubHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxMjQyMTAsImV4cCI6MjA2MDcwMDIxMH0.jEIMSnX6-uEA07gjnQKdEXO20Zlpw4XPybfeLQr7W-M',
   );
   FlutterError.onError = (FlutterErrorDetails details) {
     print('Flutter error: ${details.exceptionAsString()}');
@@ -109,9 +108,7 @@ class _MyAppState extends State<MyApp> {
         fontFamily: 'Roboto',
         primarySwatch: Colors.blue,
       ),
-      initialRoute: widget.hasSeenOnboarding
-          ? (widget.isLoggedIn ? '/home' : '/login')
-          : '/',
+      initialRoute: widget.hasSeenOnboarding ? (widget.isLoggedIn ? '/home' : '/') : '/',
       onGenerateRoute: (settings) {
         Widget page;
         switch (settings.name) {
@@ -232,8 +229,7 @@ class _PageOneState extends State<PageOne> with SingleTickerProviderStateMixin {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 30, vertical: 15),
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -265,49 +261,71 @@ class PageTwo extends StatelessWidget {
       onWillPop: () async => false, // Prevent back button from going back
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        body: Stack(
           children: [
-            Container(
-              margin: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(
-                  color: const Color.fromARGB(255, 51, 51, 51),
-                  width: 3,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  margin: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: const Color.fromARGB(255, 51, 51, 51),
+                      width: 3,
+                    ),
+                  ),
+                  child: Image.asset('assets/image2.png', fit: BoxFit.cover),
                 ),
-              ),
-              child: Image.asset('assets/image2.png', fit: BoxFit.cover),
-            ),
-            const Padding(
-              padding: EdgeInsets.all(10.0),
-              child: Text(
-                "Welcome to HMS EGG DISTRIBUTORS",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
+                const Padding(
+                  padding: EdgeInsets.all(10.0),
+                  child: Text(
+                    "Welcome to HMS EGG DISTRIBUTORS",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                "At HMS, we deliver only the finest quality eggs with a strong commitment to excellence and customer satisfaction.",
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 17,
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    "At HMS, we deliver only the finest quality eggs with a strong commitment to excellence and customer satisfaction.",
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 17,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
+                const SizedBox(height: 25),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(context, '/page-three');
+                  },
+                  child: const Text("CONTINUE"),
+                ),
+              ],
             ),
-            const SizedBox(height: 25),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/page-three');
-              },
-              child: const Text("CONTINUE"),
-            ),
+            Positioned(
+                right: 40,
+                top: 40,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.pushNamedAndRemoveUntil(context, "/login", (context) => false);
+                  },
+                  child: Text(
+                    "Skip",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.underline,
+                      decorationColor: Colors.white,
+                    ),
+                  ),
+                ))
           ],
         ),
       ),
@@ -325,39 +343,61 @@ class PageThree extends StatelessWidget {
       onWillPop: () async => false, // Prevent back button from going back
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        body: Stack(
           children: [
-            Container(
-              margin: const EdgeInsets.all(20),
-              child: Image.asset('assets/image3.png', fit: BoxFit.cover),
-            ),
-            const Padding(
-              padding: EdgeInsets.all(10.0),
-              child: Text(
-                "Trusted & Nutritious Eggs",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  margin: const EdgeInsets.all(20),
+                  child: Image.asset('assets/image3.png', fit: BoxFit.cover),
                 ),
-              ),
+                const Padding(
+                  padding: EdgeInsets.all(10.0),
+                  child: Text(
+                    "Trusted & Nutritious Eggs",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    "We ensure freshness, hygiene, and nutritional value with every egg we deliver. Choose from a wide range of organic, free-range, and specialty eggs!",
+                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 25),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushReplacementNamed(context, '/page-four');
+                  },
+                  child: const Text("CONTINUE"),
+                ),
+              ],
             ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                "We ensure freshness, hygiene, and nutritional value with every egg we deliver. Choose from a wide range of organic, free-range, and specialty eggs!",
-                style: TextStyle(color: Colors.white70, fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 25),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushReplacementNamed(context, '/page-four');
-              },
-              child: const Text("CONTINUE"),
-            ),
+            Positioned(
+                right: 40,
+                top: 40,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.pushNamedAndRemoveUntil(context, "/login", (context) => false);
+                  },
+                  child: Text(
+                    "Skip",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      decoration: TextDecoration.underline,
+                      decorationColor: Colors.white,
+                    ),
+                  ),
+                ))
           ],
         ),
       ),

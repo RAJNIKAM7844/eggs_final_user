@@ -302,10 +302,10 @@ class _SignUpPageState extends State<SignUpPage> {
       return false;
     }
 
-    if (_userImage == null && _shopImage == null) {
-      _showSnackBar('Please upload at least one image');
-      return false;
-    }
+    // if (_userImage == null && _shopImage == null) {
+    //   _showSnackBar('Please upload at least one image');
+    //   return false;
+    // }
 
     return true;
   }

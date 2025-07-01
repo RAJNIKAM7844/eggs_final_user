@@ -1548,22 +1548,22 @@ extension StringExtension on String {
   }
 }
 
-class _MaxAmountInputFormatter extends TextInputFormatter {
-  final double max;
+// class _MaxAmountInputFormatter extends TextInputFormatter {
+// final double max;
 
-  _MaxAmountInputFormatter(this.max);
+// _MaxAmountInputFormatter(this.max);
 
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    try {
-      final value = double.tryParse(newValue.text);
-      if (value == null || value > max) return oldValue;
-    } catch (_) {
-      return oldValue;
-    }
-    return newValue;
-  }
-}
+// @override
+// TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+//   try {
+//     final value = double.tryParse(newValue.text);
+//     if (value == null || value > max) return oldValue;
+//   } catch (_) {
+//     return oldValue;
+//   }
+//   return newValue;
+// }
+// }
 
 void showPaymentPendingDialog(BuildContext context) {
   showDialog(
