@@ -1,3 +1,4 @@
+// TODO: Replace <YOUR_SUPABASE_PROJECT_REF> with your actual Supabase project ref in backend URLs below.
 import 'dart:convert';
 import 'dart:developer';
 
@@ -1356,44 +1357,26 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     setState(() {
       isLoading = true;
     });
-    const merchantId = "JP2001100060862";
-    const merchantKey = "7a18c8a8725247e698060c5771cab40d"; // ⚠️ DO NOT PUT IN PROD
-
-    final merchantTxnNo = "Txn${DateTime.now().millisecondsSinceEpoch}";
-    final txnDate = DateTime.now().toIso8601String().replaceAll(RegExp(r'[-:.TZ]'), '').substring(0, 14);
-    const returnUrl = "https://uat.jiopay.co.in/tsp/pg/api/merchant";
-
-    final payload = {
-      "merchantId": merchantId,
-      "merchantTxnNo": merchantTxnNo,
-      "amount": amount,
-      "currencyCode": "356",
-      "payType": "0",
-      "customerEmailID": "test@example.com",
-      "transactionType": "SALE",
-      "returnURL": returnUrl,
-      "txnDate": txnDate,
-    };
-    final secureHash = generateSecureHash(payload, merchantKey);
-    payload.addAll({
-      "secureHash": secureHash,
-    });
+    final customerEmailID = "test@example.com"; // Replace with actual user email if available
     try {
       final response = await http.post(
-        Uri.parse("https://uat.jiopay.co.in/tsp/pg/api/v2/initiateSale"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(payload),
+        Uri.parse("https://kwoxhpztkxzqetwanlxx.functions.supabase.co/initiate-payment"),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3b3hocHp0a3h6cWV0d2FubHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxMjQyMTAsImV4cCI6MjA2MDcwMDIxMH0.jEIMSnX6-uEA07gjnQKdEXO20Zlpw4XPybfeLQr7W-M",
+        },
+        body: jsonEncode({
+          "amount": amount,
+          "customerEmailID": customerEmailID,
+        }),
       );
-
       final data = jsonDecode(response.body);
       log(data.toString());
       final redirectUri = data["redirectURI"];
       final tranCtx = data["tranCtx"];
-
-      if (redirectUri != null && tranCtx != null) {
+      final merchantTxnNo = data["merchantTxnNo"];
+      if (redirectUri != null && tranCtx != null && merchantTxnNo != null) {
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString("jiopay_merchantId", merchantId);
-        await prefs.setString("jiopay_merchantKey", merchantKey);
         await prefs.setString("jiopay_merchantTxnNo", merchantTxnNo);
         await prefs.setString("jiopay_amount", amount.toString());
         setState(() {
@@ -1401,9 +1384,8 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
         });
         final fullUrl = "$redirectUri?tranCtx=$tranCtx";
         Navigator.push(context, MaterialPageRoute(builder: (context) => PaymentScreen(htmlResponse: fullUrl)));
-        // await launchUrl(Uri.parse(fullUrl), mode: LaunchMode.externalApplication);
       } else {
-        debugPrint("Invalid JioPay response: $data");
+        debugPrint("Invalid backend response: $data");
       }
     } catch (e) {
       log(e.toString());
@@ -1419,110 +1401,89 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
       isLoading = true;
     });
     final prefs = await SharedPreferences.getInstance();
-    final merchantId = prefs.getString("jiopay_merchantId") ?? "";
     final merchantTxnNo = prefs.getString("jiopay_merchantTxnNo") ?? "";
-    final merchantKey = prefs.getString("jiopay_merchantKey") ?? "";
     final amountPaid = prefs.getString("jiopay_amount") ?? "";
-
-    if (merchantId.isEmpty || merchantTxnNo.isEmpty || merchantKey.isEmpty) {
+    if (merchantTxnNo.isEmpty) {
       debugPrint("Missing transaction data. Cannot check status.");
       return;
     }
-
-    const transactionType = "STATUS";
-    Map<String, dynamic> statusParams = {
-      "merchantId": "JP2001100060862",
-      "transactionType": "STATUS",
-      "merchantTxnNo": merchantTxnNo,
-      "originalTxnNo": merchantTxnNo,
-    };
-
-    final secureHash = generateSecureHash(
-      statusParams,
-      merchantKey,
-    );
-
-    final url = Uri.parse("https://uat.jiopay.co.in/tsp/pg/api/command");
-    final body = {
-      "merchantId": merchantId,
-      "transactionType": transactionType,
-      "merchantTxnNo": merchantTxnNo,
-      "originalTxnNo": merchantTxnNo,
-      "secureHash": secureHash,
-    };
-
-    final response = await http.post(
-      url,
-      headers: {"Content-Type": "application/x-www-form-urlencoded"},
-      body: body,
-    );
-
-    final result = jsonDecode(response.body);
-    log(result.toString());
-    if (response.statusCode == 200) {
-      debugPrint("🟢 JioPay Status Response: $result");
-
-      final txnStatus = result["txnStatus"];
-      final txnRespDescription = result["txnRespDescription"];
-      final txnResponseCode = result["txnResponseCode"];
-
-      if (txnStatus == "SUC" && txnResponseCode == "0000") {
-        try {
-          final parsedDriverId = int.parse(widget.transactions.first.driverId);
-          log(parsedDriverId.toString());
-          final newBalance = creditBalance - double.parse(amountPaid);
-          print('Inserting payment transaction with driver_id: $parsedDriverId');
-          await _supabase.from('transactions').insert({
-            'user_id': widget.transactions.first.userId,
-            'date': DateTime.now().toIso8601String(),
-            'credit': 0.0,
-            'paid': amountPaid,
-            'balance': newBalance,
-            'mode_of_payment': "UPI",
-            'driver_id': parsedDriverId,
-          }).then((value) async {
+    try {
+      final response = await http.post(
+        Uri.parse("https://kwoxhpztkxzqetwanlxx.functions.supabase.co/check-payment-status"),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3b3hocHp0a3h6cWV0d2FubHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxMjQyMTAsImV4cCI6MjA2MDcwMDIxMH0.jEIMSnX6-uEA07gjnQKdEXO20Zlpw4XPybfeLQr7W-M",
+        },
+        body: jsonEncode({
+          "merchantTxnNo": merchantTxnNo,
+        }),
+      );
+      final result = jsonDecode(response.body);
+      log(result.toString());
+      if (response.statusCode == 200) {
+        final txnStatus = result["txnStatus"];
+        final txnRespDescription = result["txnRespDescription"];
+        final txnResponseCode = result["txnResponseCode"];
+        if (txnStatus == "SUC" && txnResponseCode == "0000") {
+          try {
+            final parsedDriverId = int.parse(widget.transactions.first.driverId);
+            log(parsedDriverId.toString());
+            final newBalance = creditBalance - double.parse(amountPaid);
+            print('Inserting payment transaction with driver_id: $parsedDriverId');
+            await _supabase.from('transactions').insert({
+              'user_id': widget.transactions.first.userId,
+              'date': DateTime.now().toIso8601String(),
+              'credit': 0.0,
+              'paid': amountPaid,
+              'balance': newBalance,
+              'mode_of_payment': "UPI",
+              'driver_id': parsedDriverId,
+            }).then((value) async {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Transaction successfull')),
+              );
+              _loadCreditData();
+            });
+            setState(() {
+              creditBalance = newBalance;
+              isLoading = false;
+            });
+            Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Transaction successfull')),
+              const SnackBar(content: Text('Payment recorded successfully')),
             );
-            _loadCreditData();
-          });
-
-          setState(() {
-            creditBalance = newBalance;
-            isLoading = false;
-          });
-
-          Navigator.pop(context);
+          } catch (e) {
+            log(e.toString());
+            print('Error in _showPaymentDialog: $e');
+            setState(() {
+              isLoading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to record payment: $e')),
+            );
+          }
+        } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Payment recorded successfully')),
+            SnackBar(content: Text('Transaction Failed')),
           );
-        } catch (e) {
-          log(e.toString());
-          print('Error in _showPaymentDialog: $e');
-          setState(() {
-            isLoading = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to record payment: $e')),
-          );
+          debugPrint("⌛ Pending/Unknown: $txnRespDescription");
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transaction Failed')),
-        );
-        debugPrint("⌛ Pending/Unknown: $txnRespDescription");
+        debugPrint("❌ Failed to fetch payment status. HTTP "+response.statusCode.toString());
+        await prefs.remove("jiopay_merchantTxnNo");
+        await prefs.remove("jiopay_amount");
+        setState(() {
+          isLoading = false;
+          showVerifyButton = false;
+        });
       }
-    } else {
-      debugPrint("❌ Failed to fetch payment status. HTTP ${response.statusCode}");
+    } catch (e) {
+      log(e.toString());
+      debugPrint("Error checking payment status: $e");
     }
-    await prefs.remove("jiopay_merchantId");
-    await prefs.remove("jiopay_merchantTxnNo");
-    await prefs.remove("jiopay_merchantKey");
-    await prefs.remove("jiopay_amount");
-    setState(() {
-      isLoading = false;
-      showVerifyButton = false;
-    });
+      setState(() {
+        isLoading = false;
+      });
   }
 
   String generateSecureHash(Map<String, dynamic> params, String merchantKey) {
