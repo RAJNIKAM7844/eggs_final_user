@@ -1486,6 +1486,14 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
       final tranCtx = data["tranCtx"];
       final merchantTxnNo = data["merchantTxnNo"];
       if (redirectUri != null && tranCtx != null && merchantTxnNo != null) {
+        final userId = _supabase.auth.currentUser?.id;
+        await _supabase.from('payment_transaction').insert({
+          'user_id': userId,
+          'merchant_txn_no': merchantTxnNo,
+          'amount': amount,
+          'status': 'initiated',
+          'method': 'NetBanking',
+        });
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("jiopay_merchantTxnNo", merchantTxnNo);
         await prefs.setString("jiopay_amount", amount.toString());
@@ -1535,6 +1543,14 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
       final respBody = data["respBody"];
       final upiQR = respBody != null ? respBody["upiQR"] : null;
       if (upiQR != null && upiQR.toString().startsWith("upi://")) {
+        final userId = _supabase.auth.currentUser?.id;
+        await _supabase.from('payment_transaction').insert({
+          'user_id': userId,
+          'merchant_txn_no': merchantRefNo,
+          'amount': amount,
+          'status': 'initiated',
+          'method': 'UPI',
+        });
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("jiopay_merchantTxnNo", merchantRefNo);
         await prefs.setString("jiopay_amount", amount.toString());
@@ -1637,6 +1653,10 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
           );
           debugPrint("⌛ Pending/Unknown: $txnRespDescription");
         }
+        await _supabase
+          .from('payment_transaction')
+          .update({'status': txnStatus})
+          .eq('merchant_txn_no', merchantTxnNo);
         await prefs.remove("jiopay_merchantTxnNo");
         await prefs.remove("jiopay_amount");
         showVerifyButton = false;
