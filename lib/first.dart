@@ -1308,7 +1308,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                         LengthLimitingTextInputFormatter(10),
                       ],
                       decoration: InputDecoration(
-                        hintText: "Enter amount (1000 - ${maxAmount.toStringAsFixed(0)})",
+                        hintText: "Enter amount (1 - ${maxAmount.toStringAsFixed(0)})",
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -1348,9 +1348,9 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                       ? null
                       : () {
                           final entered = double.tryParse(controller.text) ?? 0;
-                          if (entered < 1000) {
+                          if (entered < 1) {
                             setState(() {
-                              errorText = "Minimum amount is 1000";
+                              errorText = "Minimum amount is 1";
                             });
                             return;
                           }

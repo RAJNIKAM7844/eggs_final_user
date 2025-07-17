@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PaymentScreen extends StatefulWidget {
   final String htmlResponse;
@@ -45,5 +46,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
         body: WebViewWidget(controller: _controller),
       ),
     );
+  }
+}
+
+Future<void> launchUPIUrl(String upiUrl) async {
+  final uri = Uri.parse(upiUrl);
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } else {
+    // Show error to user
+    print('Could not launch $upiUrl');
   }
 }
