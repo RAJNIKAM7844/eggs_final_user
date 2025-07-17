@@ -12,6 +12,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 class Transaction {
   final String id;
@@ -1275,9 +1276,10 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     );
   }
 
-   void showAmountInputDialog(BuildContext context, double maxAmount) {
+  void showAmountInputDialog(BuildContext context, double maxAmount) {
     final TextEditingController controller = TextEditingController(text: maxAmount.toStringAsFixed(0));
     String? errorText;
+    final size = MediaQuery.of(context).size;
 
     showDialog(
       context: context,
@@ -1355,8 +1357,97 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                             return;
                           }
                           if (entered > 0 && entered <= maxAmount) {
-                            Navigator.pop(context);
-                            initiatePayment(entered);
+                            // Show payment method selection dialog
+                            showDialog(
+                              context: context,
+                              builder: (context) {
+                                return AlertDialog(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      Icon(Icons.payment, color: Color(0xFF0288D1)),
+                                      SizedBox(width: 10),
+                                      Text(
+                                        "Select Payment Method",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: size.width * 0.05,
+                                          color: Color(0xFF0288D1),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  content: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(height: 8),
+                                      ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Color(0xFF4CAF50),
+                                          foregroundColor: Colors.white,
+                                          minimumSize: Size(double.infinity, 48),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                        icon: Icon(Icons.qr_code),
+                                        label: Text("Pay with UPI", style: TextStyle(fontSize: size.width * 0.045)),
+                                        onPressed: () {
+                                          Navigator.pop(context); // Close method dialog
+                                          Navigator.pop(context); // Close amount dialog
+                                          initiateUpiAppPayment(entered); // To be implemented
+                                        },
+                                      ),
+                                      SizedBox(height: 16),
+                                      Row(
+                                        children: [
+                                          Expanded(child: Divider(thickness: 1)),
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                            child: Text("OR", style: TextStyle(color: Color(0xFF757575))),
+                                          ),
+                                          Expanded(child: Divider(thickness: 1)),
+                                        ],
+                                      ),
+                                      SizedBox(height: 16),
+                                      ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Color(0xFF0288D1),
+                                          foregroundColor: Colors.white,
+                                          minimumSize: Size(double.infinity, 48),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                        ),
+                                        icon: Icon(Icons.account_balance),
+                                        label: Text("Pay with Net Banking", style: TextStyle(fontSize: size.width * 0.045)),
+                                        onPressed: () {
+                                          Navigator.pop(context); // Close method dialog
+                                          Navigator.pop(context); // Close amount dialog
+                                          initiatePayment(entered); // Existing net banking flow
+                                        },
+                                      ),
+                                      SizedBox(height: 12),
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.pop(context); // Close method dialog only
+                                        },
+                                        child: Text(
+                                          "Cancel",
+                                          style: TextStyle(
+                                            color: Color(0xFFD32F2F),
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: size.width * 0.045,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
                           }
                         },
                   child: const Text(
@@ -1371,7 +1462,6 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
       },
     );
   }
-
 
   Future<void> initiatePayment(double amount) async {
     setState(() {
@@ -1410,6 +1500,65 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     } catch (e) {
       log(e.toString());
       debugPrint("Error initiating payment: $e");
+    }
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  Future<void> initiateUpiAppPayment(double amount) async {
+    setState(() {
+      isLoading = true;
+    });
+    final customerEmailID = "test@example.com"; // Replace with actual user email if available
+    final mobileNo = "8668604395"; // Replace with actual user mobile if available
+    final merchantRefNo = "mer${DateTime.now().millisecondsSinceEpoch}";
+    final invoiceNo = "inv${DateTime.now().millisecondsSinceEpoch}";
+    final invoiceDate = DateFormat('yyyyMMdd').format(DateTime.now());
+    try {
+      final response = await http.post(
+        Uri.parse("https://kwoxhpztkxzqetwanlxx.functions.supabase.co/initiate-upi-app"),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3b3hocHp0a3h6cWV0d2FubHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUxMjQyMTAsImV4cCI6MjA2MDcwMDIxMH0.jEIMSnX6-uEA07gjnQKdEXO20Zlpw4XPybfeLQr7W-M",
+        },
+        body: jsonEncode({
+          "amount": amount.toStringAsFixed(2),
+          "merchantRefNo": merchantRefNo,
+          "mobileNo": mobileNo,
+          "emailID": customerEmailID,
+          "invoiceNo": invoiceNo,
+          "invoiceDate": invoiceDate,
+        }),
+      );
+      final data = jsonDecode(response.body);
+      final respBody = data["respBody"];
+      final upiQR = respBody != null ? respBody["upiQR"] : null;
+      if (upiQR != null && upiQR.toString().startsWith("upi://")) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString("jiopay_merchantTxnNo", merchantRefNo);
+        await prefs.setString("jiopay_amount", amount.toString());
+        setState(() {
+          showVerifyButton = true;
+        });
+        final uri = Uri.parse(upiQR);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not launch UPI app.')),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to get UPI QR.')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error initiating UPI payment: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error initiating UPI payment: $e')),
+      );
     }
     setState(() {
       isLoading = false;
