@@ -679,7 +679,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
 
   showVerifyButtonActivte() async {
     final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getString("jiopay_merchantId");
+    final value = prefs.getString("jiopay_merchantTxnNo");
     if (value != null && value.isNotEmpty) {
       setState(() {
         showVerifyButton = true;
@@ -1260,7 +1260,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                                 color: Colors.white,
                               )
                             : Text(
-                                "Verity Payment",
+                                "Verify Payment",
                                 style: TextStyle(
                                   color: Colors.white,
                                 ),
@@ -1275,83 +1275,103 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
     );
   }
 
-  void showAmountInputDialog(BuildContext context, double maxAmount) {
+   void showAmountInputDialog(BuildContext context, double maxAmount) {
     final TextEditingController controller = TextEditingController(text: maxAmount.toStringAsFixed(0));
+    String? errorText;
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          backgroundColor: Colors.white,
-          elevation: 10,
-          title: const Center(
-            child: Text(
-              "Enter Amount",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          content: SizedBox(
-            height: 80,
-            child: Column(
-              children: [
-                TextField(
-                  controller: controller,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(fontSize: 18),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(10),
-                    // _MaxAmountInputFormatter(maxAmount),
-                  ],
-                  decoration: InputDecoration(
-                    hintText: "Enter amount ≤ ${maxAmount.toStringAsFixed(0)}",
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.blue),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: Colors.white,
+              elevation: 10,
+              title: const Center(
+                child: Text(
+                  "Enter Amount",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              content: SizedBox(
+                height: 100,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: controller,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 18),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(10),
+                      ],
+                      decoration: InputDecoration(
+                        hintText: "Enter amount (1000 - ${maxAmount.toStringAsFixed(0)})",
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: Colors.blue),
+                        ),
+                        errorText: errorText,
+                      ),
                     ),
+                    if (errorText != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          errorText!,
+                          style: const TextStyle(color: Colors.red, fontSize: 14),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actionsPadding: const EdgeInsets.only(right: 16, bottom: 10),
+              actionsAlignment: MainAxisAlignment.end,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancel"),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          final entered = double.tryParse(controller.text) ?? 0;
+                          if (entered < 1000) {
+                            setState(() {
+                              errorText = "Minimum amount is 1000";
+                            });
+                            return;
+                          }
+                          if (entered > 0 && entered <= maxAmount) {
+                            Navigator.pop(context);
+                            initiatePayment(entered);
+                          }
+                        },
+                  child: const Text(
+                    "Confirm",
+                    style: TextStyle(color: Colors.white),
                   ),
                 ),
               ],
-            ),
-          ),
-          actionsPadding: const EdgeInsets.only(right: 16, bottom: 10),
-          actionsAlignment: MainAxisAlignment.end,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade700,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              onPressed: isLoading
-                  ? null
-                  : () {
-                      final entered = double.tryParse(controller.text) ?? 0;
-                      if (entered > 0 && entered <= maxAmount) {
-                        Navigator.pop(context);
-                        initiatePayment(entered);
-                      }
-                    },
-              child: const Text(
-                "Confirm",
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
+            );
+          },
         );
       },
     );
   }
+
 
   Future<void> initiatePayment(double amount) async {
     setState(() {
@@ -1468,10 +1488,13 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
           );
           debugPrint("⌛ Pending/Unknown: $txnRespDescription");
         }
-      } else {
-        debugPrint("❌ Failed to fetch payment status. HTTP "+response.statusCode.toString());
         await prefs.remove("jiopay_merchantTxnNo");
         await prefs.remove("jiopay_amount");
+        showVerifyButton = false;
+        setState(() {});
+      } else {
+        debugPrint("❌ Failed to fetch payment status. HTTP " + response.statusCode.toString());
+
         setState(() {
           isLoading = false;
           showVerifyButton = false;
@@ -1481,9 +1504,9 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
       log(e.toString());
       debugPrint("Error checking payment status: $e");
     }
-      setState(() {
-        isLoading = false;
-      });
+    setState(() {
+      isLoading = false;
+    });
   }
 
   String generateSecureHash(Map<String, dynamic> params, String merchantKey) {

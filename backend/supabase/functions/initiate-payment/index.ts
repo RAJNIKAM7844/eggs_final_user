@@ -1,7 +1,7 @@
-import { serve } from "std/server";
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
-const merchantId = "JP2001100060862";
-const merchantKey = "7a18c8a8725247e698060c5771cab40d"; // Store securely in env for prod
+const merchantId = "JP2000000000554";
+const merchantKey = "1a5c73f115e24414a84d82e9b487e3b0"; // Store securely in env for prod
 
 async function generateSecureHash(params: Record<string, any>, key: string): Promise<string> {
   const filtered = Object.entries(params).filter(([_, v]) => v !== "" && v !== undefined && v !== null);
@@ -46,7 +46,7 @@ serve(async (req) => {
   }
   const merchantTxnNo = `Txn${Date.now()}`;
   const txnDate = new Date().toISOString().replace(/[-:.TZ]/g, '').substring(0, 14);
-  const returnUrl = "https://uat.jiopay.co.in/tsp/pg/api/merchant";
+  const returnUrl = "https://jiopay.co.in/pg/api/v2/initiateSale";
   const payload = {
     merchantId,
     merchantTxnNo,
@@ -59,7 +59,7 @@ serve(async (req) => {
     txnDate,
   };
   payload["secureHash"] = await generateSecureHash(payload, merchantKey);
-  const jiopayRes = await fetch("https://uat.jiopay.co.in/tsp/pg/api/v2/initiateSale", {
+  const jiopayRes = await fetch("https://jiopay.co.in/pg/api/v2/initiateSale", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

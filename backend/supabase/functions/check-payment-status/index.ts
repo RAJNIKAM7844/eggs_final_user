@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
-const merchantId = "JP2001100060862";
-const merchantKey = "7a18c8a8725247e698060c5771cab40d"; // Store securely in env for prod
+const merchantId = "JP2000000000554";
+const merchantKey = "1a5c73f115e24414a84d82e9b487e3b0"; // Store securely in env for prod
 
 async function generateSecureHash(params: Record<string, any>, key: string): Promise<string> {
   const filtered = Object.entries(params).filter(([_, v]) => v !== "" && v !== undefined && v !== null);
@@ -51,7 +51,7 @@ serve(async (req) => {
     originalTxnNo: merchantTxnNo,
   };
   statusParams["secureHash"] = await generateSecureHash(statusParams, merchantKey);
-  const jiopayRes = await fetch("https://uat.jiopay.co.in/tsp/pg/api/command", {
+  const jiopayRes = await fetch("https://jiopay.co.in/pg/api/command", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(statusParams),
