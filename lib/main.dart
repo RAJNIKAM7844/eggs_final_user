@@ -275,7 +275,12 @@ class PageTwo extends StatelessWidget {
                       width: 3,
                     ),
                   ),
-                  child: Image.asset('assets/image2.png', fit: BoxFit.cover),
+                  child: Image.asset(
+                    'assets/image2.png',
+                    fit: BoxFit.cover,
+                    height: MediaQuery.of(context).size.height * 0.5,
+                    width: MediaQuery.of(context).size.width,
+                  ),
                 ),
                 const Padding(
                   padding: EdgeInsets.all(10.0),
@@ -284,7 +289,7 @@ class PageTwo extends StatelessWidget {
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 20,
+                      fontSize: 18,
                     ),
                   ),
                 ),
@@ -294,7 +299,7 @@ class PageTwo extends StatelessWidget {
                     "At HMS, we deliver only the finest quality eggs with a strong commitment to excellence and customer satisfaction.",
                     style: TextStyle(
                       color: Colors.white70,
-                      fontSize: 17,
+                      fontSize: 14,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -350,7 +355,12 @@ class PageThree extends StatelessWidget {
               children: [
                 Container(
                   margin: const EdgeInsets.all(20),
-                  child: Image.asset('assets/image3.png', fit: BoxFit.cover),
+                  child: Image.asset(
+                    'assets/image3.png',
+                    fit: BoxFit.cover,
+                    height: MediaQuery.of(context).size.height * 0.5,
+                    width: MediaQuery.of(context).size.width,
+                  ),
                 ),
                 const Padding(
                   padding: EdgeInsets.all(10.0),
@@ -359,7 +369,7 @@ class PageThree extends StatelessWidget {
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 20,
+                      fontSize: 18,
                     ),
                   ),
                 ),
@@ -367,7 +377,7 @@ class PageThree extends StatelessWidget {
                   padding: EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
                     "We ensure freshness, hygiene, and nutritional value with every egg we deliver. Choose from a wide range of organic, free-range, and specialty eggs!",
-                    style: TextStyle(color: Colors.white70, fontSize: 16),
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -431,7 +441,12 @@ class PageFour extends StatelessWidget {
           children: [
             Container(
               margin: const EdgeInsets.all(20),
-              child: Image.asset('assets/image4.png', fit: BoxFit.cover),
+              child: Image.asset(
+                'assets/image4.png',
+                fit: BoxFit.cover,
+                height: MediaQuery.of(context).size.height * 0.5,
+                width: MediaQuery.of(context).size.width,
+              ),
             ),
             const Padding(
               padding: EdgeInsets.all(10.0),
@@ -440,7 +455,7 @@ class PageFour extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: 20,
+                  fontSize: 18,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -451,7 +466,7 @@ class PageFour extends StatelessWidget {
                 "• Fast Delivery\n• Affordable Pricing\n• 100% Fresh Eggs\n• Trusted by 500+ customers",
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 14,
                 ),
                 textAlign: TextAlign.center,
               ),

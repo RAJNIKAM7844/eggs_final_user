@@ -1369,14 +1369,15 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
                                     children: [
                                       Icon(Icons.payment, color: Color(0xFF0288D1)),
                                       SizedBox(width: 10),
-                                      Text(
+                                     Expanded(child: Text(
                                         "Select Payment Method",
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: size.width * 0.05,
+                                          fontSize: 18,
                                           color: Color(0xFF0288D1),
                                         ),
                                       ),
+                                     ),
                                     ],
                                   ),
                                   content: Column(
@@ -1611,21 +1612,41 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
         final txnResponseCode = result["txnResponseCode"];
         if (txnStatus == "SUC" && txnResponseCode == "0000") {
           try {
-            final parsedDriverId = int.parse(widget.transactions.first.driverId);
-            log(parsedDriverId.toString());
+            // Get the current user ID
+            final userId = _supabase.auth.currentUser?.id;
+            if (userId == null) {
+              throw Exception('User not authenticated');
+            }
+            
+            // Handle driver ID parsing safely
+            int? driverId;
+            if (widget.transactions.isNotEmpty && 
+                widget.transactions.first.driverId.isNotEmpty) {
+              try {
+                driverId = int.parse(widget.transactions.first.driverId);
+              } catch (e) {
+                log('Could not parse driver ID: ${widget.transactions.first.driverId}, using null');
+                driverId = null;
+              }
+            }
+            
             final newBalance = creditBalance - double.parse(amountPaid);
-            print('Inserting payment transaction with driver_id: $parsedDriverId');
-            await _supabase.from('transactions').insert({
-              'user_id': widget.transactions.first.userId,
+            log('Inserting payment transaction with driver_id: ${driverId}');
+            
+            // Use the correct table based on user role
+            final transactionsTable = widget.userRole == 'wholesale' ? 'wholesale_transaction' : 'transactions';
+            
+            await _supabase.from(transactionsTable).insert({
+              'user_id': userId,
               'date': DateTime.now().toIso8601String(),
               'credit': 0.0,
               'paid': amountPaid,
               'balance': newBalance,
               'mode_of_payment': "UPI",
-              'driver_id': parsedDriverId,
+              if (driverId != null) 'driver_id': driverId,
             }).then((value) async {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Transaction successfull')),
+                SnackBar(content: Text('Transaction successful')),
               );
               _loadCreditData();
             });
@@ -1639,12 +1660,12 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
             );
           } catch (e) {
             log(e.toString());
-            print('Error in _showPaymentDialog: $e');
+            print('Error in payment processing: ${e}');
             setState(() {
               isLoading = false;
             });
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to record payment: $e')),
+              SnackBar(content: Text('Failed to record payment: ${e}')),
             );
           }
         } else {
