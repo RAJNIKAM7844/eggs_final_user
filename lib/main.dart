@@ -57,7 +57,7 @@ Route createSlideTransition(Widget page) {
     transitionDuration: const Duration(milliseconds: 300),
   );
 }
-
+  
 class MyApp extends StatefulWidget {
   final bool hasSeenOnboarding;
   final bool isLoggedIn;

@@ -664,7 +664,7 @@ class _CreditDetailsPageState extends State<CreditDetailsPage> {
   bool showVerifyButton = false;
   static const int itemsPerPage = 5;
   String sortBy = 'date';
-  bool sortAscending = true;
+  bool sortAscending = false;
   String? searchQuery;
   final TextEditingController searchController = TextEditingController();
 
